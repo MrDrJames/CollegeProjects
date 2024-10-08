@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Painter's Algorithm WebGL</title>
+        <style>
+        canvas {
+            border: 1px solid black;
+        }
+        </style>
+    </head>
+    <body>
+        <canvas id="canvas" width="400" height="400"></canvas>
+        <script>
+        const canvas = document.getElementById("canvas");
+        const gl = canvas.getContext("webgl");
+
+        // Define vertices for two overlapping triangles with different Z-coordinates
+        const triangles = [
+            { vertices: new Float32Array([
+                -0.5, 0.5,
+                 0.5, 0.5,
+                  0.0, -0.5
+                ]), z: 0.2,
+                color: [1.0, 0.0, 0.0, 1.0]
+            }, // Triangle 1
+            { vertices: new Float32Array([
+                0.0, 0.8,   // Vertex 1: Top center
+                0.5, -0.2,  // Vertex 2: Bottom right
+                -0.5, -0.2   // Vertex 3: Bottom center
+                ]), z: 0.5,
+                color: [0.0, 0.0, 1.0, 1.0]
+            }, // Triangle 2
+        ];
+
+        triangles.sort((a, b) => a.z - b.z); // Sort triangles based on Z-coordinate
+        // Standard shaders to make colors work
+        const vertexShaderSource = `
+            attribute vec2 a_position;
+            void main() {
+                gl_Position = vec4(a_position, 0.0, 1.0);
+            }
+        `;
+        // A change here though to make the color dependent on the data in the triangles
+        const fragmentShaderSource = `
+            precision mediump float;
+            uniform vec4 u_color; // Color uniform
+            void main() {
+                gl_FragColor = u_color;
+            }
+        `;
+        // Create shaders, compile, and link
+        // AKA take the shader source and make it work
+        function createShader(gl, sourceCode, type) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, sourceCode);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error("Shader compilation error:", gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+        // Making the shader objects
+        const vertexShader = createShader(gl, vertexShaderSource, gl.VERTEX_SHADER);
+        const fragmentShader = createShader(gl, fragmentShaderSource, gl.FRAGMENT_SHADER);
+
+        // Making the shader objects apply to this program
+        const program = gl.createProgram();
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program);
+        gl.useProgram(program);
+        
+        // Clear the canvas
+        // I had this inside the loop until I realized that would erase the overalped traingles
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        // Loop through all the triangles
+        for (const triangle of triangles) {
+            // Create buffer and bind data
+            const buffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, triangle.vertices, gl.STATIC_DRAW);
+            
+            // Get attribute location and enable it
+            const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
+            gl.enableVertexAttribArray(positionAttributeLocation);
+            gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+            // Taking the color data from the triangles and giving it to the shader
+            const colorUniformLocation = gl.getUniformLocation(program, "u_color");
+            gl.uniform4fv(colorUniformLocation, triangle.color);
+            // Draw
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+        }
+        </script>
+    </body>
+</html>
